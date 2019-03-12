@@ -1,4 +1,4 @@
-import { DanmakuClient } from '../../../src/lib/danmaku/danmaku.mjs'
+import { DanmakuClient } from '../src/lib/danmaku/danmaku.mjs'
 
 const danmakuClient = new DanmakuClient({
     url: 'openbarrage.douyutv.com',
