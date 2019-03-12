@@ -1,0 +1,20 @@
+{
+  "name": "douyu-mjs",
+  "version": "0.0.1",
+  "description": "Douyu API wrapper",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "douyu",
+    "douyua-api",
+    "api"
+  ],
+  "author": "Tao Lei",
+  "license": "ISC",
+  "dependencies": {
+    "convict": "^4.4.1",
+    "node-fetch": "^2.3.0"
+  }
+}
