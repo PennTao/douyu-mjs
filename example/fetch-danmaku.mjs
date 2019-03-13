@@ -3,7 +3,8 @@ import { DanmakuClient } from '../src/lib/danmaku/danmaku.mjs'
 const danmakuClient = new DanmakuClient({
     url: 'openbarrage.douyutv.com',
     port: '8601',
-    roomId: '1126960',
+    // roomId: '1126960',
+    roomId: '777',
 });
 
 try {
@@ -14,18 +15,15 @@ try {
         console.log('ready');
         danmakuClient.connectToRoom();
         danmakuClient.joinGroup("-9999");
-        danmakuClient.keepAlive(40000);
+        // danmakuClient.keepAlive(45000);
     });
 
     danmakuClient.on('data', data => {
         console.log('data received');
 
-        const handledMessage = danmakuClient.handleMessage(data, previousRemainder);
-        previousRemainder = handledMessage.remainder;
-
-        // console.log(handledMessage);
-        // console.log(danmakuClient.decode(data));
-    
+        const {records, remainder} = danmakuClient.processBuffer(data, previousRemainder);
+        previousRemainder = remainder;
+        console.log(records)    
     });
 
     danmakuClient.on('closed', () => {
