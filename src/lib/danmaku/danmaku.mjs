@@ -67,7 +67,63 @@ class DanmakuClient extends EventEmitter{
      * @return  {string}                [decoded string from buffer]
      */
     decode(buffer) {
+        // console.log(buffer.toString('utf8'));
+        // console.log("Message Length: " + buffer.readInt32LE(0));
+        // console.log("Message Length: " + buffer.readInt32LE(HEADER_SIZE));
+        // console.log("Coed: " + buffer.readInt16LE(HEADER_SIZE + HEADER_SIZE))
+        // console.log("buffer size: " + buffer.byteLength)
+        // console.log("str: " + buffer.toString('utf-8', 12, buffer.readInt32LE(0) + 4 ))
+        // console.log("str size: " + buffer.toString('utf-8', 12, buffer.readInt32LE(0) + 4 ).length)
+        // if(buffer.readInt32LE(0) < buffer.byteLength){
+        //     console.log('second msg');
+        //     console.log(buffer.readInt32LE(0) + HEADER_SIZE);
+        //     console.log("Message Length: " + buffer.readInt32LE(buffer.readInt32LE(0) + HEADER_SIZE))
+        //     console.log("Message Length: " + buffer.readInt32LE(buffer.readInt32LE(0) + HEADER_SIZE * 2))
+        // }
         return buffer.toString('utf8', HEADER_LENGTH + FRAME_LENGTH);
+    }
+
+    processBuffer(buffer, previousBuffer) {
+        let position = 0;
+        let messageSize = 0;
+        let fullBuffer;
+        const bufferRecords = [];
+        const totalHeaderSize = HEADER_SIZE * 2 + HEADER_TYPECODE + HEADER_ENCRYPT + HEADER_ENCRYPT;
+        if (previousBuffer !== null || previousBuffer.length === 0) {
+            fullBuffer = Buffer.concat([previousBuffer, buffer]);
+        } else {
+            fullBuffer = buffer;
+        }
+        console.log(fullBuffer.toString('utf8'))
+        console.log(previousBuffer.length)
+        messageSize = fullBuffer.readInt32LE(position);
+        console.log(messageSize);
+        console.log(fullBuffer.length)
+        if (fullBuffer.length < messageSize ) {
+            return {
+                bufferRecords,
+                remainingBuffer: fullBuffer,
+            }
+        }
+        while(position < fullBuffer.length) {
+            const bufferRecord = fullBuffer.toString('utf-8', position + totalHeaderSize, messageSize );
+            console.log(bufferRecord)
+            position += messageSize + 4;
+            console.log("new pos: " + position)
+            console.log("full len: " + fullBuffer.length);
+            if(position >= fullBuffer.length) {
+                console.log('break')
+                break;
+            }
+            messageSize = fullBuffer.readInt32LE(position);
+            console.log(messageSize)
+
+            bufferRecords.push(bufferRecord);
+
+        }
+        return {
+            bufferRecords
+        }
     }
     /**
      * [joinGroup: send a message to Douyu danmaku server to join a danmaku group]
@@ -106,6 +162,7 @@ class DanmakuClient extends EventEmitter{
      * @return  {Object}                        Array of JSON of the decoded and deserialized message and remaining message string to be processed next time
      */
     handleMessage(rawMessage, previousRemainder) {
+        console.log(this.processBuffer(rawMessage, previousRemainder));
         const deserializeRecords = [];
         if (rawMessage === null) {
             return {
@@ -130,11 +187,11 @@ class DanmakuClient extends EventEmitter{
         const processingMessage = fullMessage.substring(0, splitPosition);
 
         const remainder = fullMessage.substring(splitPosition);
-        console.log('============full================')
-        console.log(processingMessage);
-        console.log('============rema================')
-        console.log(remainder)
-        console.log('============end================')
+        // console.log('============full================')
+        // console.log(processingMessage);
+        // console.log('============rema================')
+        // console.log(remainder)
+        // console.log('============end================')
         const rawRecords = processingMessage.split('type@=');
 
         rawRecords.forEach(rawRecord => {
