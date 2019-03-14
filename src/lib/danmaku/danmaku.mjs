@@ -7,6 +7,7 @@ const HEADER_SIZE = 4;
 const HEADER_TYPECODE = 2;
 const HEADER_ENCRYPT = 1;
 const HEADER_RESERVED = 1;
+const HEADER_MESSAGE_SIZE = 4;
 
 const regex = 'txt@=(.+?)/cid@';
 class DanmakuClient extends EventEmitter{
@@ -25,6 +26,10 @@ class DanmakuClient extends EventEmitter{
 
         this.socket.on('close', () => {
             this.emit('closed');
+        });
+
+        this.socket.on('error', (err) => {
+            this.emit('error', err)
         })
     }
     /**
@@ -41,7 +46,7 @@ class DanmakuClient extends EventEmitter{
      * Message length, 4 byte little endian integer(repeat)
      * Message type, 2 byte little endian integer
      *  689: client sending message to server
-     *  690 server sending message to client
+     *  690: server sending message to client
      * Encrypt, 1 byte little endian integer, unused, default to 0
      * Reserved, 1 byte little endian integer, unused, default to 0
      * Body, must end with '\0'
@@ -61,6 +66,90 @@ class DanmakuClient extends EventEmitter{
         // this.socket.write(Buffer.concat([bufferHead, bufferMessage], totalBufferLength));        
     }
 
+    _decode(buffer) {
+        const { messageSize1, messageSize2, typeCode, encrypt, reserved} = this.decodeHeader(buffer)
+        const totalHeaderSize = HEADER_MESSAGE_SIZE * 2 + HEADER_TYPECODE + HEADER_ENCRYPT + HEADER_RESERVED;
+        const message = buffer.toString('utf-8', totalHeaderSize);
+        return {
+            messageSize1,
+            messageSize2,
+            typeCode,
+            encrypt,
+            reserved,
+            message,
+        }
+    }
+
+    decodeHeader(buffer) {
+        const messageSize1 = buffer.readInt32LE(0);
+        const messageSize2 = buffer.readInt32LE(HEADER_MESSAGE_SIZE);
+        const typeCode = buffer.readInt16LE(HEADER_MESSAGE_SIZE * 2);
+        const encrypt = buffer.readInt8(HEADER_MESSAGE_SIZE * 2 + HEADER_TYPECODE);
+        const reserved = buffer.readInt8(HEADER_MESSAGE_SIZE * 2 + HEADER_TYPECODE + HEADER_ENCRYPT);    
+        return {
+            messageSize1,
+            messageSize2,
+            typeCode,
+            encrypt,
+            reserved,
+        }   
+    }
+
+    _processBuffer(buffer, previousBuffer) {
+        const decodedMessages = [];
+
+        if (previousBuffer !== null && previousBuffer !== undefined) {
+            buffer = Buffer.concat([previousBuffer, buffer]);
+        } 
+        // let curBuffer = Buffer.alloc(0);
+        let remainingBuffer = Buffer.alloc(0);
+        let curBuffer = Buffer.alloc(0);
+        let header;
+
+        let {messageSize1, messageSize2, typeCode} = this.decodeHeader(buffer);
+        console.log(messageSize1)
+        console.log(messageSize2)
+        console.log(typeCode)
+        if ((messageSize1 !== messageSize2) || typeCode !== '690') {
+            console.log('message corrupted');
+            return {
+                decodedMessages,
+                remainingBuffer,
+            }
+        }
+        while(buffer.length >= messageSize1 + 4) {
+            curBuffer = buffer.slice(0, messageSize1 + 4);
+            buffer = buffer.slice(messageSize1 + 4);
+            let {message} = this._decode(curBuffer);
+            decodedMessages.push(message);
+            if (buffer.length >= 12 ) {
+                header = this.decodeHeader(buffer);
+                messageSize1 = header.messageSize1;
+                messageSize2 = header.messageSize2;
+                typeCode = header.typeCode;
+                console.log(messageSize1)
+                console.log(messageSize2)
+                console.log(typeCode)
+                if ((messageSize1 !== messageSize2) || typeCode !== '690') {
+                    console.log('message corrupted');
+                    return {
+                        decodedMessages,
+                        remainingBuffer,
+                    }
+                }
+            } else {
+                break;
+            }   
+        }
+        remainingBuffer = buffer;
+        return {
+            decodedMessages,
+            remainingBuffer,
+        }
+
+        
+    }
+
 
     /**
      * [decode: decode the message received from Douyu danmaku server]
@@ -70,6 +159,8 @@ class DanmakuClient extends EventEmitter{
      */
     decode(buffer, previousBuffer) { // an incoming buffer might contain multiple messages or less than one  message, need to handle accordingly
         //  buffer index position
+        console.log('====type@=======')
+        console.log(buffer.indexOf('type@='));
         let position = 0;
         //  current message size
         let messageSize = 0;
@@ -91,6 +182,10 @@ class DanmakuClient extends EventEmitter{
 
         //  Get the size of the first message in the buffer
         messageSize = fullBuffer.readInt32LE(position);
+        console.log('=====full=====')
+        console.log(fullBuffer.toString('utf-8'))
+        console.log('message size: ' + messageSize);
+
         //  Size of the first message is greater than the buffer size, so the buffer does not contain the full message
         //  return the buffer for next processing
         if (fullBuffer.length < messageSize ) {
@@ -98,23 +193,29 @@ class DanmakuClient extends EventEmitter{
         } else {
             while(position < fullBuffer.length) {
                 //  Decode the message and push to the return array
-                const decodedMessage = fullBuffer.toString('utf-8', position + totalHeaderSize, messageSize + 2);
+                const decodedMessage = fullBuffer.toString('utf-8', position + totalHeaderSize, position + messageSize + 2);
                 decodedMessages.push(decodedMessage);
-    
+                
+                //  Update buffer index
                 position += messageSize + 4;
  
-                //  New position reaches or goes pass the end of the full buffer, break
-                if(position >= fullBuffer.length) {
+                //  New index reaches or goes pass the end of the full buffer
+                //  There are must be at least 4 bytes from the current index to the end
+                if(position  >= fullBuffer.length - 5) {
+                    console.log('break')
                     break;
                 }
-                //  Get the size of the next message in the buffer
                 messageSize = fullBuffer.readInt32LE(position);
+                console.log('message size: ' + messageSize);
             }
+
             //  The buffer does not contain full last message, assign the portion of the last message to remainingBuffer for next processing
             if (position > fullBuffer.length) {
                 remainingBuffer = fullBuffer.slice(position - messageSize - 4);
             }             
         }
+        console.log('full buffer size: ' + fullBuffer.length);
+
         return {
             decodedMessages,
             remainingBuffer,
@@ -127,6 +228,7 @@ class DanmakuClient extends EventEmitter{
     connectToRoom() {
         // const message = `type@=loginreq/roomid@=${this.roomId}/\0`;
         const message = `type@=loginreq/username@=tao.lei/password@=douyu/roomid@=${this.roomId}/\0`;
+        console.log(message)
         this.socket.write(this.encode(message));
     }
 
@@ -160,7 +262,7 @@ class DanmakuClient extends EventEmitter{
      */
     processBuffer(buffer, previousBuffer) {
         if (buffer === null) {
-
+            
         }
         //  Decode the buffer to get string message
         const { decodedMessages, remainingBuffer } = this.decode(buffer, previousBuffer);
