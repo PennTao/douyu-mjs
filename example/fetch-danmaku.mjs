@@ -24,7 +24,9 @@ try {
         const {records, remainingBuffer} = danmakuClient.processBuffer(data, previousRemainder);
         previousRemainder = remainingBuffer;
         records.forEach( record => {
-            console.log(record.type);
+            if (record.type !==  'chatmsg'){
+                console.log(record)
+            }
         });
         if(records.length === 0) {
             console.log('====next====')

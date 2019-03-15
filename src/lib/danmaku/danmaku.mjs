@@ -9,7 +9,8 @@ const HEADER_ENCRYPT = 1;
 const HEADER_RESERVED = 1;
 const HEADER_MESSAGE_SIZE = 4;
 
-const regex = 'txt@=(.+?)/cid@';
+const regex = /[^\/]+@=[^\/]+/g;
+
 class DanmakuClient extends EventEmitter{
     constructor(options) {
         super();
@@ -129,20 +130,21 @@ class DanmakuClient extends EventEmitter{
                 remainingBuffer,
             }
         }
-        console.log('buffer length: ' + buffer.length);
-        console.log('message size: ' + messageSize1);
+        // console.log('buffer length: ' + buffer.length);
+        // console.log('message size: ' + messageSize1);
         while(buffer.length >= messageSize1 + 4) {
             curBuffer = buffer.slice(0, messageSize1 + 4);
             buffer = buffer.slice(messageSize1 + 4);
             let {message} = this.decode(curBuffer);
             decodedMessages.push(message);
+            // console.log(message)
             if (buffer.length >= 12 ) {
                 header = this.decodeHeader(buffer);
                 messageSize1 = header.messageSize1;
                 messageSize2 = header.messageSize2;
                 typeCode = header.typeCode;
-                console.log('buffer length: ' + buffer.length);
-                console.log('message size: ' + messageSize1);
+                // console.log('buffer length: ' + buffer.length);
+                // console.log('message size: ' + messageSize1);
                 if ((messageSize1 !== messageSize2) || typeCode !== 690) {
                     console.log('message corrupted');
                     return {
@@ -155,6 +157,15 @@ class DanmakuClient extends EventEmitter{
             }   
         }
         remainingBuffer = buffer;
+        // const records = decodedMessages.map( decodedMessage =>  {
+        //     console.log('========msg======')
+        //     console.log(decodedMessage)
+        //     console.log('=====record======')
+        //     const record = this.deserialize(decodedMessage)
+        //     console.log(record)
+        //     return record;
+        // });
+
         const records = decodedMessages.map( decodedMessage => this.deserialize(decodedMessage))
         return {
             records,
@@ -194,32 +205,27 @@ class DanmakuClient extends EventEmitter{
     }
 
     deserialize(message) {
-        if (message === null) {
-            //TODO: throw message
+        if (message === null ) {
             return null;
         }
-        if (message.length <= 0) {
-            //TODO: throw error
-            return null;
+        const record = {};
+        const items = message.match(regex);
+        if(items === null) {
+            return message;
         }
-
-        const rawRecords = message.split('/');
-        if(rawRecords.length <= 1) {
-            //TODO: throw error
-            return null;
-        }
-
-        // const recordType = data.shift();
-        const deserializeRecord = { };
-
-        rawRecords.forEach( keyValuePair => {
-            const keyValueArray = keyValuePair.split('@=');
-            const key = keyValueArray[0];
-            const value = keyValueArray[1];
-            deserializeRecord[key] = value
-        });
-
-        return deserializeRecord;
+        items.forEach( item => {
+            const kvps = item.split('@=');
+            const key = kvps[0];
+            const value = kvps[1]
+            const escapeSlashvalues = value.replace(/@S/g, '/').split('/');
+            if (escapeSlashvalues.length > 2) {
+                record[key] = escapeSlashvalues.map(escapeSlashvalue => this.deserialize( escapeSlashvalue.replace(/@A/g, '@').replace(/@S/g, '/').replace(/@A/g, '@')))
+            } else {
+                record[key] = escapeSlashvalues[0]
+            }
+    
+        }) 
+        return record;
     }
 }
 
