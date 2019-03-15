@@ -21,9 +21,14 @@ try {
     danmakuClient.on('data', data => {
         console.log('data received');
 
-        const {records, remainingBuffer} = danmakuClient._processBuffer(data, previousRemainder);
+        const {records, remainingBuffer} = danmakuClient.processBuffer(data, previousRemainder);
         previousRemainder = remainingBuffer;
-        console.log(records)    
+        records.forEach( record => {
+            console.log(record.type);
+        });
+        if(records.length === 0) {
+            console.log('====next====')
+        }
     });
 
     danmakuClient.on('closed', () => {
