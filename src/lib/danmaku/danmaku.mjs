@@ -63,9 +63,13 @@ class DanmakuClient extends EventEmitter{
         bufferHeader.writeInt16LE(code, 8);
         bufferHeader.writeInt16LE(0,10);
         return Buffer.concat([bufferHeader, bufferMessage], totalBufferLength);
-        // this.socket.write(Buffer.concat([bufferHead, bufferMessage], totalBufferLength));        
     }
 
+    /**
+     * [decode: decode the message received from Douyu danmaku server]
+     * @param   {Buffer}    buffer          [buffer to be decoded]
+     * @return  {Object}                    [decoded header object from buffer]
+     */
     _decode(buffer) {
         const { messageSize1, messageSize2, typeCode, encrypt, reserved} = this.decodeHeader(buffer)
         const totalHeaderSize = HEADER_MESSAGE_SIZE * 2 + HEADER_TYPECODE + HEADER_ENCRYPT + HEADER_RESERVED;
@@ -80,6 +84,11 @@ class DanmakuClient extends EventEmitter{
         }
     }
 
+    /**
+     * [decodeHeader: decode the header of the message received from Douyu danmaku server]
+     * @param   {Buffer}    buffer          [buffer to be decoded]
+     * @return  {Object}                    [decoded string from buffer]
+     */
     decodeHeader(buffer) {
         const messageSize1 = buffer.readInt32LE(0);
         const messageSize2 = buffer.readInt32LE(HEADER_MESSAGE_SIZE);
@@ -94,7 +103,12 @@ class DanmakuClient extends EventEmitter{
             reserved,
         }   
     }
-
+    /**
+     * [processBuffer: decode and deserialize the message received from Douyu danmaku server]
+     * @param   {buffer}    buffer              message received from Douyu danmaku server
+     * @param   {buffer}    previousBuffer      the previously received message's unhandled part
+     * @return  {Object}                        Array of JSON of the decoded and deserialized message and remaining message string to be processed next time
+     */
     _processBuffer(buffer, previousBuffer) {
         const decodedMessages = [];
 
@@ -110,7 +124,7 @@ class DanmakuClient extends EventEmitter{
         console.log(messageSize1)
         console.log(messageSize2)
         console.log(typeCode)
-        if ((messageSize1 !== messageSize2) || typeCode !== '690') {
+        if ((messageSize1 !== messageSize2) || typeCode !== 690) {
             console.log('message corrupted');
             return {
                 decodedMessages,
@@ -130,7 +144,7 @@ class DanmakuClient extends EventEmitter{
                 console.log(messageSize1)
                 console.log(messageSize2)
                 console.log(typeCode)
-                if ((messageSize1 !== messageSize2) || typeCode !== '690') {
+                if ((messageSize1 !== messageSize2) || typeCode !== 690) {
                     console.log('message corrupted');
                     return {
                         decodedMessages,
@@ -142,8 +156,9 @@ class DanmakuClient extends EventEmitter{
             }   
         }
         remainingBuffer = buffer;
+        const records = decodedMessages.map( decodedMessage => this.deserialize(decodedMessage))
         return {
-            decodedMessages,
+            records,
             remainingBuffer,
         }
 

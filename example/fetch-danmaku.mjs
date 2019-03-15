@@ -21,8 +21,8 @@ try {
     danmakuClient.on('data', data => {
         console.log('data received');
 
-        const {records, remainder} = danmakuClient._processBuffer(data, previousRemainder);
-        previousRemainder = remainder;
+        const {records, remainingBuffer} = danmakuClient._processBuffer(data, previousRemainder);
+        previousRemainder = remainingBuffer;
         console.log(records)    
     });
 
