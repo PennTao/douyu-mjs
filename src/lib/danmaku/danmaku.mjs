@@ -1,6 +1,8 @@
 import net from 'net';
 import EventEmitter from 'events';
+import bunyan from 'bunyan';
 import { encode, decode, decodeHeader } from '../../utils/utils';
+import DanmakuError from '../../errors/damaku-error';
 
 const regex = /[^/]+@=[^/]+/g;
 const regexArraySplitter = /[^/]+(?:[^/]*)*/g;
@@ -12,6 +14,11 @@ class DanmakuClient extends EventEmitter {
     this.port = options.port;
     this.roomId = options.roomId;
     this.socket = new net.Socket();
+    if (options.logger) {
+      this.logger = options.logger;
+    } else {
+      this.logger = bunyan.createLogger({ name: 'douyu-mjs' });
+    }
     this.socket.on('ready', () => {
       this.emit('connected');
     });
@@ -47,7 +54,7 @@ class DanmakuClient extends EventEmitter {
     if (previousBuffer !== null && previousBuffer !== undefined) {
       buffer = Buffer.concat([previousBuffer, buffer]);
     }
-    // let curBuffer = Buffer.alloc(0);
+
     let remainingBuffer = Buffer.alloc(0);
     let curBuffer = Buffer.alloc(0);
     let header;
@@ -55,31 +62,29 @@ class DanmakuClient extends EventEmitter {
     let { messageSize1, messageSize2, typeCode } = decodeHeader(buffer);
 
     if ((messageSize1 !== messageSize2) || typeCode !== 690) {
-      console.log('message corrupted');
+      const error = new DanmakuError({
+        cause: 'Message Corrupted',
+      });
+      this.logger.info(error, 'Message received from Douyu is corrupted');
       return {
         decodedMessages,
         remainingBuffer,
       };
     }
-    // console.log('buffer length: ' + buffer.length);
-    // console.log('message size: ' + messageSize1);
+
     while (buffer.length >= messageSize1 + 4) {
       curBuffer = buffer.slice(0, messageSize1 + 4);
       buffer = buffer.slice(messageSize1 + 4);
       const { message } = decode(curBuffer);
       decodedMessages.push(message);
-      // console.log(message)
       if (buffer.length >= 12) {
         header = decodeHeader(buffer);
         ({ messageSize1, messageSize2, typeCode } = header);
-        // messageSize1 = header.messageSize1;
-        // messageSize2 = header.messageSize2;
-        // typeCode = header.typeCode;
-        // console.log('buffer length: ' + buffer.length);
-        // console.log('message size: ' + messageSize1);
         if ((messageSize1 !== messageSize2) || typeCode !== 690) {
-          console.log('message corrupted');
-          return {
+          const error = new DanmakuError({
+            cause: 'Message Corrupted',
+          });
+          this.logger.info(error, 'Message received from Douyu is corrupted'); return {
             decodedMessages,
             remainingBuffer,
           };
@@ -143,7 +148,6 @@ class DanmakuClient extends EventEmitter {
       const value = kvps[1];
       const escapeSlashvalues = value.replace(/@S/g, '/').match(regexArraySplitter);
       const deserializeValues = escapeSlashvalues.map(escapeSlashvalue => this.deserialize(escapeSlashvalue.replace(/@A/g, '@').replace(/@S/g, '/').replace(/@A/g, '@')));
-      // console.log(escapeSlashvalues)
       if (deserializeValues.length > 1) {
         record[key] = deserializeValues;
       } else {
