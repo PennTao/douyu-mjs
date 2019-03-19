@@ -1,11 +1,9 @@
 import net from 'net';
 import EventEmitter from 'events';
 import bunyan from 'bunyan';
+import { deserialize } from 'stt-serde-mjs';
 import { encode, decode, decodeHeader } from '../../utils/utils';
 import DanmakuError from '../../errors/damaku-error';
-
-const regex = /[^/]+@=[^/]+/g;
-const regexArraySplitter = /[^/]+(?:[^/]*)*/g;
 
 class DanmakuClient extends EventEmitter {
   constructor(options) {
@@ -94,8 +92,7 @@ class DanmakuClient extends EventEmitter {
       }
     }
     remainingBuffer = buffer;
-
-    const records = decodedMessages.map(decodedMessage => this.deserialize(decodedMessage));
+    const records = decodedMessages.map(decodedMessage => deserialize(decodedMessage));
     return {
       records,
       remainingBuffer,
@@ -106,7 +103,6 @@ class DanmakuClient extends EventEmitter {
      * [connectToRoom: send a message to Douyu danmaku server to join a room]
      */
   connectToRoom() {
-    // const message = `type@=loginreq/roomid@=${this.roomId}/\0`;
     const message = `type@=loginreq/username@=tao.lei/password@=douyu/roomid@=${this.roomId}/\0`;
     this.socket.write(encode(message));
   }
@@ -132,31 +128,9 @@ class DanmakuClient extends EventEmitter {
       this.socket.write(encode(message));
     }, interval);
   }
-
-  deserialize(message) {
-    if (message === null) {
-      return null;
-    }
-    const record = {};
-    const items = message.match(regex);
-    if (items === null) {
-      return message;
-    }
-    items.forEach((item) => {
-      const kvps = item.split('@=');
-      const key = kvps[0];
-      const value = kvps[1];
-      const escapeSlashvalues = value.replace(/@S/g, '/').match(regexArraySplitter);
-      const deserializeValues = escapeSlashvalues.map(escapeSlashvalue => this.deserialize(escapeSlashvalue.replace(/@A/g, '@').replace(/@S/g, '/').replace(/@A/g, '@')));
-      if (deserializeValues.length > 1) {
-        record[key] = deserializeValues;
-      } else {
-        [record[key]] = deserializeValues;
-      }
-    });
-    return record;
-  }
 }
+
 
 export { DanmakuClient };
 export default DanmakuClient;
+
