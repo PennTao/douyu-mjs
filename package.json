@@ -22,6 +22,7 @@
     "bunyan": "^1.8.12",
     "convict": "^4.4.1",
     "node-fetch": "^2.3.0",
+    "stt-serde-mjs": "0.0.2",
     "uuid": "^3.3.2"
   },
   "devDependencies": {
@@ -30,7 +31,6 @@
     "eslint-config-airbnb-base-mjs": "^3.0.0",
     "eslint-plugin-import": "^2.16.0",
     "eslint-plugin-jsx-a11y": "^6.1.1",
-    "eslint-plugin-react": "^7.11.0",
-    "stt-serde-mjs": "0.0.1"
+    "eslint-plugin-react": "^7.11.0"
   }
 }

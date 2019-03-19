@@ -133,4 +133,3 @@ class DanmakuClient extends EventEmitter {
 
 export { DanmakuClient };
 export default DanmakuClient;
-
